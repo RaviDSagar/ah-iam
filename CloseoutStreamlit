@@ -1,0 +1,309 @@
+import streamlit as st
+from snowflake.snowpark.context import get_active_session
+from snowflake.snowpark import DataFrame as SnowparkDataFrame
+import pandas as pd
+
+try:
+    session = get_active_session()
+except Exception as e:
+    st.error(f"Failed to get active Snowflake session. This app must be run within Snowflake. Error: {e}")
+    st.stop() # Stop the app if a session can't be found.
+    
+
+st.set_page_config(page_title="Clouseout Data Entry", page_icon="❄️", layout="wide")
+st.markdown("""
+    <style>
+        .block-container {
+            padding-top: 0.25rem;
+            padding-bottom: 0rem;
+            padding-left: 1rem;
+            padding-right: 1rem;
+        }
+        .stDataFrame > div > div > div > div > div:nth-child(2) > div:nth-child(1) > div {
+                font-size: 12px;
+                border-radius: 8px; 
+            }
+        div[data-testid="InputInstructions"] {
+        display: none;
+        .st-key-CattleInformation{
+            background-color: #DFA7A5;
+        }
+}
+
+    </style>
+""", unsafe_allow_html=True)
+def calTotalCost():
+    st.session_state.CalculatedTotalCost = 5
+
+st.markdown("<h6 style='text-align: center;'>Closeout Data Entry/Update/Delete</h3>", unsafe_allow_html=True)
+
+try:
+    feedlotList = session.sql("SELECT FEEDLOTNAME FROM RAW.IFHMS.FEEDLOT")
+    ProcDescList = session.sql("SELECT ProcDesc FROM RAW.CARCASS.PROCUREMENT ")
+    ProgramCodeList = session.sql("SELECT PROGRAMCODENAME FROM RAW.CARCASS.PROGRAMCODE ")
+except Exception as e:
+        st.error(f"Error fetching data from 'RAW.IFHMS.FEEDLOT'. Please check the table name and your permissions. {e}")
+        st.stop()
+
+
+# Create a session state to manage the selected record for updates
+# (This is a good practice to keep for when you add the full functionality)
+if 'selected_record' not in st.session_state:
+    st.session_state.selected_record = None
+    
+
+with st.form("New Entry"):
+    with st.container(key="CattleInformation"):
+        st.markdown("<h5 style='text-align: center; vertical-align:middle; background-color: #DFA7A5; padding: 0.375rem 0px 0.25rem;'>Cattle Information</h5>", unsafe_allow_html=True)
+        
+        col1, col2, col3, col4, col5 = st.columns([0.14, 0.34, 0.04, 0.14, 0.34])
+        with col1:
+            st.markdown("<h5 style='text-align: left; vertical-align: middle; padding: 0.375rem 0px 0.25rem;'>Feedlot Name</h5>", unsafe_allow_html=True)
+        with col2:
+            selectedFeedlot = st.selectbox(
+        "",
+        feedlotList,
+        index=0,
+        label_visibility="collapsed",# Optional: set a default selected index (0-based),
+        key="selectedFeedlot"
+        )
+        with col3:
+            st.write("")
+        with col4:
+            st.markdown("<h5 style='text-align: left; vertical-align: middle; padding: 0.375rem 0px 0.25rem;'>Closeout Source</h5>", unsafe_allow_html=True)
+        with col5:
+            CloseoutSource = st.selectbox("", ['Feedlot', 'GK JIM Group', 'GreenhouseGas'],
+        index=0,
+        label_visibility="collapsed",
+        key="CloseoutSource")
+    
+    
+        col1, col2, col3, col4, col5 = st.columns([0.14, 0.34, 0.04, 0.14, 0.34])
+        with col1:
+            st.markdown("<h5 style='text-align: left; vertical-align: middle; padding: 0.375rem 0px 0.25rem;'>Lot Number (Required)</h5>", unsafe_allow_html=True)
+        with col2:
+            LotNumber = st.text_input("", label_visibility="collapsed", key="LotNumber")
+        with col3:
+            st.write("")
+        with col4:
+            st.markdown("<h5 style='text-align: left; vertical-align: middle; padding: 0.375rem 0px 0.25rem;'>Lot Description</h5>", unsafe_allow_html=True)
+        with col5:
+            LotDescription = st.text_input("", label_visibility="collapsed", key="LotDescription")
+    
+        col1, col2, col3, col4, col5 = st.columns([0.14, 0.34, 0.04, 0.14, 0.34])
+        with col1:
+            st.markdown("<h5 style='text-align: left; vertical-align: middle; padding: 0.375rem 0px 0.25rem;'>Buyer</h5>", unsafe_allow_html=True)
+        with col2:
+            Buyer = st.text_input("", label_visibility="collapsed", key="Buyer")
+        with col3:
+            st.write("")
+        with col4:
+            st.markdown("<h5 style='text-align: left; vertical-align: middle; padding: 0.375rem 0px 0.25rem;'>Owner</h5>", unsafe_allow_html=True)
+        with col5:
+            Owner = st.text_input("", label_visibility="collapsed", key="Owner")
+    
+        col1, col2, col3, col4, col5 = st.columns([0.14, 0.34, 0.04, 0.14, 0.34])
+        with col1:
+            st.markdown("<h5 style='text-align: left; vertical-align: middle; padding: 0.375rem 0px 0.25rem;'>Origin</h5>", unsafe_allow_html=True)
+        with col2:
+            origin = st.selectbox(
+        "",
+        ['Appleyard', 'Barnwell', 'Boakes', 'Cantriex', 'Cantriex/Appleyard', 'CRESTVIEW', 'Evergreen', 'G5 CATTLE', 'Giles', 'Giles/Kopp/Hunter', 'Grass', 'Hunter', 'JACBRO', 'JGL', 'Keates', 'Kopp', 'Local', 'McKnight', 'Mexico', 'Mountains', 'Other/Multiple', 'OUTSIDE', 'Pre-Conditioned', 'Ranch Direct', 'RIVERVIEW', 'Roseburn', 'Sale Ring', 'Sales Barn', 'SILVERBUTTE', 'Sim', 'South Island', 'Stockholm'],
+        index=0,
+        label_visibility="collapsed",# Optional: set a default selected index (0-based),
+        key="origin"
+        )
+        with col3:
+            st.write("")
+        with col4:
+            st.markdown("<h5 style='text-align: left; vertical-align: middle; padding: 0.375rem 0px 0.25rem;'>Origin (Open Field)</h5>", unsafe_allow_html=True)
+        with col5:
+            OriginOpenField = st.text_input("", label_visibility="collapsed", key="OriginOpenField")
+    
+        col1, col2, col3, col4, col5 = st.columns([0.14, 0.34, 0.04, 0.14, 0.34])
+        with col1:
+            st.markdown("<h5 style='text-align: left; vertical-align: middle; padding: 0.375rem 0px 0.25rem;'>Gender (Required)</h5>", unsafe_allow_html=True)
+        with col2:
+            Gender = st.selectbox(
+        "",
+        ['Heifer', 'Steer', 'Bull', 'Holstein', 'Mixed', 'Butcher Cows', 'Bred Cows'],
+        index=0,
+        label_visibility="collapsed",# Optional: set a default selected index (0-based),
+        key="Gender"
+        )
+        with col3:
+            st.write("")
+        with col4:
+            st.markdown("<h5 style='text-align: left; vertical-align: middle; padding: 0.375rem 0px 0.25rem;'>Breed</h5>", unsafe_allow_html=True)
+        with col5:
+            Breed = st.selectbox(
+        "",
+        ['M - #1 Holstein Steer', 'X - Jersey', 'DairyXBeef', 'X-Bred', 'G - Mikes Mexican', 'Native', 'Y - #2 Holstein', 'Mixed', 'T - Hojo', 'S - Braums', 'Num1 Canada', 'Num2 Canada', 'Southeastern #1', 'Southeastern #2, 3', 'Z - #2 Holstein Riverview', 'W - Wulf LIMxHO', 'V - Wulf LIMxJE', 'P - BB RIVERVIEW LIMxJE', 'O - Native - 2', 'D - Native - 2A', 'K - Native - 3', 'B - Native - 3A', 'E - Native - 3B', 'Q - FEEDLOT OB MEXICAN', 'J - Cow', 'F - NATIVE – GKJ 1.5', 'N - Native - 1', 'L - Mixed Dairy', 'Waygu X Dairy', 'A - HOAN', 'BB - Purchase', 'BB - Riverview', 'BeefBuilder', 'UA', 'Wulf Mix', 'U - Holstein Heifer', 'Mexico European', 'Mexico Southeastern', 'Mexico Mixed Beef', 'Ad Hoc', 'AH - BB CORONADO LIMxJE', 'AF - BB CORONADO MIX', 'AC - HEAVY #1 HOLSTEIN STEER', 'AG - BB CORONADO LIMxHO', 'H - BB LONESTAR TULS LIMxHO', 'XX - Ignore this Lot', 'R - BRAUMS BEEF X', 'WULF REGULAR', 'WULF BACKGROUND', 'AE - BB PURCHASED LIMxJE', 'AU - BEEFxMIX', 'C - NATIVE - WINCHESTER', 'AU - BEEFxMIX', 'AX – Native – 3H', 'W - BB PURCHASED MIX', 'AL - BB OOH LIMxJE', 'AQ - CANADA HOLSTEIN STEER', 'AR - CANADA HOLSTEIN HEIFER', 'BA - NATIVE - 5A', 'BB - NATIVE - 5B', 'H - BB RIVERVIEW LIMxHO', 'AM - BB RIVERVIEW N MIX', 'V - BB RIVERVIEW MIX', 'AT - NON-AUCTION NATIVE', 'AA - NATIVE - 1 - NATURAL', 'AD - BB PURCHASED LIMxHO', 'AP - HFRS JIM UPTAGROVE XHR', 'AV - BEEFxHO', 'Foster', 'AY - NATIVE - 5', 'AW - BEEFxJE', 'Mexican', 'HC Native', 'HC Mexican', 'NWI_Moser_JRT', 'DVP', '4 - RANCH OB MEXICAN', 'AD - BB ALLIANCE LIMxHO', 'AE - BB ALLIANCE LIMxJE', 'W - BB ALLIANCE MIX', 'AZ - WAGYU', 'HOL', 'EUR', 'SE', 'SE-P', 'AGOST', 'HOL-DES', 'AS - AUCTION NATIVE', 'BL - BB OOH LIMxJE #2', 'GLCC', 'DVP USA', 'WH - CHARxHO'],
+        index=0,
+        label_visibility="collapsed",# Optional: set a default selected index (0-based),
+        key="Breed"
+        )
+        col1, col2, col3, col4, col5 = st.columns([0.14, 0.34, 0.04, 0.14, 0.34])
+        with col1:
+            st.markdown("<h5 style='text-align: left; vertical-align: middle; padding: 0.375rem 0px 0.25rem;'>Background</h5>", unsafe_allow_html=True)
+        with col2:
+            Background = st.selectbox(
+        "",
+        ['Background', 'Calf', 'Yearling', 'Fall Calf', 'Winter Calf'],
+        index=0,
+        label_visibility="collapsed",# Optional: set a default selected index (0-based),
+        key="Background"
+        )
+        with col3:
+            st.write("")
+        with col4:
+            st.markdown("<h5 style='text-align: left; vertical-align: middle; padding: 0.375rem 0px 0.25rem;'>Transfer</h5>", unsafe_allow_html=True)
+        with col5:
+            Transfer = st.selectbox(
+        "",
+        ['True', 'False'],
+        index=0,
+        label_visibility="collapsed",# Optional: set a default selected index (0-based),
+        key="Transfer"
+        )
+        col1, col2, col3, col4, col5 = st.columns([0.14, 0.34, 0.04, 0.14, 0.34])
+        with col1:
+            st.markdown("<h5 style='text-align: left; vertical-align: middle; padding: 0.375rem 0px 0.25rem;'>Pen</h5>", unsafe_allow_html=True)
+        with col2:
+            Background = st.text_input(
+        "",
+        label_visibility="collapsed",# Optional: set a default selected index (0-based),
+        key="Pen"
+        )
+        with col3:
+            st.write("")
+        with col4:
+            st.markdown("<h5 style='text-align: left; vertical-align: middle; padding: 0.375rem 0px 0.25rem;'>Carcass Adjusted Closeout</h5>", unsafe_allow_html=True)
+        with col5:
+            Transfer = st.selectbox(
+        "",
+        ['True', 'False'],
+        index=0,
+        label_visibility="collapsed",# Optional: set a default selected index (0-based),
+        key="CarcassAdjustedCloseout"
+        )
+    st.markdown("<h5 style='text-align: center; vertical-align:middle; background-color: #B9CDE5; padding: 0.375rem 0px 0.25rem;'>Purchase Information</h5>", unsafe_allow_html=True)
+
+    col1, col2, col3, col4 = st.columns([0.25, 0.25, 0.25, 0.25])
+    with col1:
+        AverageInDate = st.date_input("Average In Date", key="AverageInDate")
+    with col2:
+        HeadIn = st.number_input("Head In", key="HeadIn")
+    with col3:
+        TotalPurchaseWeight = st.number_input(" Total Purchase Weight", key="TotalPurchaseWeight")
+    with col4:
+        TotalLaidInPurchaseCost = st.number_input(" Total Laid In Purchase Cost", key="TotalLaidInPurchaseCost", format="%f")
+
+    st.markdown("<h5 style='text-align: center; vertical-align:middle; background-color: #B5CB88; padding: 0.375rem 0px 0.25rem;'>Sales Information</h5>", unsafe_allow_html=True)
+    col1, col2, col3, col4 = st.columns([0.25, 0.25, 0.25, 0.25])
+    with col1:
+        AverageInDate = st.date_input("Average Out Date", key="AverageOutDate")
+    with col2:
+        AverageDeadDate = st.date_input("Average Dead Date", key="AverageDeadDate")
+    with col3:
+        AverageRailDate = st.date_input("Average Rail Date", key="AverageRailDate")
+    with col4:
+        TotalHeadShipped = st.number_input(" Total Head Shipped", key="TotalHeadShipped")
+
+    col1, col2, col3, col4 = st.columns([0.25, 0.25, 0.25, 0.25])
+    with col1:
+        TotalOutWeight = st.number_input("Total Out Weight", key="TotalOutWeight")
+    with col2:
+        TotalDeadWeight = st.number_input("Total Dead Weight", key="TotalDeadWeight")
+    with col3:
+        TotalRailWeight = st.number_input("Total Rail Weight", key="TotalRailWeight")
+    with col4:
+        HeadSoldKilledInUSA = st.number_input("Head Sold/Killed in USA", key="HeadSoldKilledInUSA")
+
+    col1, col2, col3, col4 = st.columns([0.25, 0.25, 0.25, 0.25])
+    with col1:
+        TotalNetOutWeight = st.number_input("Total Net Out Weight", key="TotalNetOutWeight")
+    with col2:
+        HeadDead = st.number_input("Head Dead", key="HeadDead")
+    with col3:
+        HeadRailed = st.number_input("Head Railed", key="HeadRailed")
+    with col4:
+        TotalSalesProceeds = st.number_input("Total Sales Proceeds", key="TotalSalesProceeds")
+
+    col1, col2, col3, col4 = st.columns([0.25, 0.25, 0.25, 0.25])
+    with col1:
+        TotalHotCarcassWeight = st.number_input("Total Hot Carcass Weight", key="TotalHotCarcassWeight")
+    with col2:
+        AverageStormDeadDate = st.date_input("Average Storm Dead Date", key="AverageStormDeadDate")
+    with col3:
+        DressingPercentage = st.number_input("Dressing Percentage", key="DressingPercentage")
+    with col4:
+        FinancialCloseDate = st.date_input("Financial Close Date", key="FinancialCloseDate")
+    
+    col1, col2, col3, col4 = st.columns([0.25, 0.25, 0.25, 0.25])
+    with col1:
+        TotalStormDeadWeight = st.number_input("Total Storm Dead Weight", key="TotalStormDeadWeight")
+    with col2:
+        TotalStormDeads = st.number_input("Total Storm Deads", key="TotalStormDeads")
+    with col3:
+
+        ProcDesc = st.selectbox(
+    "ProcDesc",
+    ProcDescList,
+    key="ProcDesc"
+    )
+        
+    with col4:
+        ProgramCode = st.selectbox(
+    "Program",
+    ProgramCodeList,
+    key="ProgramCode"
+    )
+    st.markdown("<h5 style='text-align: center; vertical-align:middle; background-color: #F7B580; padding: 0.375rem 0px 0.25rem;'>Feed and Cost Information</h5>", unsafe_allow_html=True)
+    col1, col2, col3, col4 = st.columns([0.25, 0.25, 0.25, 0.25])
+    with col1:
+        TotalDaysOnFeed = st.number_input("Total Days on Feed", key="TotalDaysOnFeed")
+    with col2:
+        TotalProcessingCost = st.number_input("Total Processing Cost", key="TotalProcessingCost")
+    with col3:
+        TotalHealthTreatmentCost = st.number_input("Total Health/Treatment Cost", key="TotalHealthTreatmentCost")
+    with col4:
+        TotalOtherCost = st.number_input("Total Other Cost", key="TotalOtherCost")
+
+    col1, col2, col3, col4 = st.columns([0.25, 0.25, 0.25, 0.25])
+    with col1:
+        TotalDryMatterIntake = st.number_input("Total Dry Matter Intake", key="TotalDryMatterIntake")
+    with col2:
+        TotalYardageCost = st.number_input("Total Yardage Cost", key="TotalYardageCost")
+    with col3:
+        BeddingCost = st.number_input("Bedding Cost", key="BeddingCost")
+    with col4:
+        FreightCost = st.number_input("Freight Cost", key="FreightCost")
+
+    col1, col2, col3, col4 = st.columns([0.25, 0.25, 0.25, 0.25])
+    with col1:
+        FeedingType = st.selectbox("Feeding Type", ['Backgrounding', 'OnGrass', 'FinishingFeedlot', 'CalfRanch', 'BreedingReplacements', 'GrasstoFeedlot', 'FinishingonGrassRation', 'Fast Gathering', 'Pre-Sort', 'Post-Sort'], index=0, key="FeedingType")
+    with col2:
+        TotalFeedCost = st.number_input("Total Feed Cost", key="TotalFeedCost")
+    with col3:
+        YardageIncludedinFeedCost = st.selectbox("Yardage Included in Feed Cost", ['True', 'False'], key="YardageIncludedinFeedCost")
+    with col4:
+        TotalAsFedIntake = st.number_input("Total As Fed Intake", key="TotalAsFedIntake")
+
+    col1, col2= st.columns([0.5, 0.5])
+    with col1:
+        CalculatedTotalCost = st.number_input("Calculated Total Cost", key="CalculatedTotalCost", disabled=True)
+    with col2:
+        NetProceeds = st.number_input("Net Proceeds", key="NetProceeds", disabled=True)
+   
+    col1, col2, col3, col4 = st.columns([0.25, 0.25, 0.25, 0.25])
+    with col1:
+        ADGLive = st.number_input("ADGLive", key="ADGLive", disabled=True)
+    with col2:
+        FGLive = st.number_input("F:GLive", key="F:GLive", disabled=True)
+    with col3:
+        ADGCarcass = st.number_input("ADGCarcass", key="ADGCarcass", disabled=True)
+    with col4:
+        FGCarcass = st.number_input("F:GCarcass", key="FGCarcass", disabled=True)
+
+    st.form_submit_button() 
